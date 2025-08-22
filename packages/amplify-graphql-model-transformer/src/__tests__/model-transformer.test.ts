@@ -649,6 +649,94 @@ describe('ModelTransformer:', () => {
     expect(verifyInputCount(parsed, 'TagInput', 1)).toBeTruthy();
   });
 
+  it('should preserve array structure for batch upserted custom types', () => {
+    const validSchema = `
+      type Todo @model {
+          id: ID!
+          content: String
+          tags: [TodoTagType!]!
+          updatedTs: Int
+      }
+      type TodoTagType {
+          name: String!
+          color: String!
+      }
+      type TodoUpsert {
+          content: String
+          tags: [TodoTagType!]!
+          updatedTs: Int
+      }
+    `;
+
+    const out = testTransform({
+      schema: validSchema,
+      transformers: [new ModelTransformer()],
+    });
+    expect(out).toBeDefined();
+
+    const definition = out.schema;
+    expect(definition).toBeDefined();
+    const parsed = parse(definition);
+    validateModelSchema(parsed);
+
+    // Test that the Todo model preserves array structure in its input types
+    const createTodoInputType = getInputType(parsed, 'CreateTodoInput');
+    expect(createTodoInputType).toBeDefined();
+
+    const createTodoTagsField = getFieldOnInputType(createTodoInputType!, 'tags');
+    expect(createTodoTagsField).toBeDefined();
+
+    // Verify array structure is preserved: [TodoTagType!]! -> [TodoTagTypeInput!]!
+    expect(createTodoTagsField.type.kind).toBe('NonNullType');
+    expect((createTodoTagsField.type as any).type.kind).toBe('ListType');
+    expect((createTodoTagsField.type as any).type.type.kind).toBe('NonNullType');
+    expect((createTodoTagsField.type as any).type.type.type.kind).toBe('NamedType');
+    expect((createTodoTagsField.type as any).type.type.type.name.value).toBe('TodoTagTypeInput');
+
+    // Test UpdateTodoInput as well
+    const updateTodoInputType = getInputType(parsed, 'UpdateTodoInput');
+    expect(updateTodoInputType).toBeDefined();
+
+    const updateTodoTagsField = getFieldOnInputType(updateTodoInputType!, 'tags');
+    expect(updateTodoTagsField).toBeDefined();
+
+    // Verify the same array structure preservation in UpdateTodoInput
+    // UpdateTodoInput fields are made nullable by default, so tags should be [TodoTagTypeInput] (nullable)
+    expect(updateTodoTagsField.type.kind).toBe('ListType');
+    expect((updateTodoTagsField.type as any).type.kind).toBe('NonNullType');
+    expect((updateTodoTagsField.type as any).type.type.kind).toBe('NamedType');
+    expect((updateTodoTagsField.type as any).type.type.name.value).toBe('TodoTagTypeInput');
+
+    // Verify that both input types have identical structure for the tags field
+    verifyMatchingTypes(createTodoTagsField.type, updateTodoTagsField.type);
+
+    // Test that the original model type structure matches the generated input type structure
+    const todoModelObject = getObjectType(parsed, 'Todo');
+    const todoTagsField = getFieldOnObjectType(todoModelObject!, 'tags');
+
+    // The original model has [TodoTagType!]! and the input should have [TodoTagTypeInput!]!
+    // Only the inner type name should change, not the array structure
+    expect(todoTagsField.type.kind).toBe('NonNullType');
+    expect((todoTagsField.type as any).type.kind).toBe('ListType');
+    expect((todoTagsField.type as any).type.type.kind).toBe('NonNullType');
+    expect((todoTagsField.type as any).type.type.type.kind).toBe('NamedType');
+    expect((todoTagsField.type as any).type.type.type.name.value).toBe('TodoTagType');
+
+    // Verify the array structure is identical between model and input
+    expect(createTodoTagsField.type.kind).toBe(todoTagsField.type.kind);
+    expect((createTodoTagsField.type as any).type.kind).toBe((todoTagsField.type as any).type.kind);
+    expect((createTodoTagsField.type as any).type.type.kind).toBe((todoTagsField.type as any).type.type.kind);
+
+    // Only the inner type name should differ
+    expect((todoTagsField.type as any).type.type.type.name.value).toBe('TodoTagType');
+    expect((createTodoTagsField.type as any).type.type.type.name.value).toBe('TodoTagTypeInput');
+
+    // Test that TodoTagTypeInput was generated and has the correct structure
+    const todoTagTypeInput = getInputType(parsed, 'TodoTagTypeInput');
+    expect(todoTagTypeInput).toBeDefined();
+    expectFieldsOnInputType(todoTagTypeInput!, ['name', 'color']);
+  });
+
   it('should generate filter inputs', () => {
     const validSchema = `
       type Post @model {

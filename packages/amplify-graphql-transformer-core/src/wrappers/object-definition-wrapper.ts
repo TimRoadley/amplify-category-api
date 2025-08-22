@@ -1,3 +1,4 @@
+/* eslint-disable max-classes-per-file */
 import {
   DirectiveNode,
   DocumentNode,
@@ -175,16 +176,20 @@ export class InputFieldWrapper extends GenericFieldWrapper {
     if (
       parent.directives?.some((directive) => directive.name.value === 'model') &&
       Object.keys(autoGeneratableFieldsWithType).indexOf(name) !== -1 &&
-      autoGeneratableFieldsWithType[name].indexOf(unwrapNonNull(field.type).name.value) !== -1
+      autoGeneratableFieldsWithType[name].indexOf(getBaseType(field.type).name.value) !== -1
     ) {
       // For @model types ids are always optional as they will be auto-filled (this isn't true for nested types with 'id' fields).
       // When provided the value is used; when not provided the value is not used.
       type = unwrapNonNull(field.type);
+    } else if (isScalar(field.type) || isEnum(field.type, document)) {
+      type = field.type;
+    } else if (isListType(field.type)) {
+      // Preserve array structure for custom types
+      const baseType = getBaseType(field.type);
+      const inputTypeName = ModelResourceIDs.NonModelInputObjectName(baseType);
+      type = withNamedNodeNamed(field.type, inputTypeName);
     } else {
-      type =
-        isScalar(field.type) || isEnum(field.type, document)
-          ? field.type
-          : withNamedNodeNamed(field.type, ModelResourceIDs.NonModelInputObjectName(getBaseType(field.type)));
+      type = withNamedNodeNamed(field.type, ModelResourceIDs.NonModelInputObjectName(getBaseType(field.type)));
     }
 
     return new InputFieldWrapper({
