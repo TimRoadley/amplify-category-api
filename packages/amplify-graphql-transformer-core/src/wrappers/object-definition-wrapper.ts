@@ -126,6 +126,7 @@ export class GenericFieldWrapper {
 //              defaultValue: this.defaultValue,
 //            };
 //          };
+// eslint-disable-next-line max-len
 //          static create = (name: string, type: string, defaultValue?: string|number|boolean| isNullable: boolean = false, isList: boolean = false): InputValueDefinitionWrapper => {
 
 //          };
@@ -176,7 +177,7 @@ export class InputFieldWrapper extends GenericFieldWrapper {
     if (
       parent.directives?.some((directive) => directive.name.value === 'model') &&
       Object.keys(autoGeneratableFieldsWithType).indexOf(name) !== -1 &&
-      autoGeneratableFieldsWithType[name].indexOf(getBaseType(field.type).name.value) !== -1
+      autoGeneratableFieldsWithType[name].indexOf(getBaseType(field.type)) !== -1
     ) {
       // For @model types ids are always optional as they will be auto-filled (this isn't true for nested types with 'id' fields).
       // When provided the value is used; when not provided the value is not used.
@@ -405,7 +406,7 @@ export class InputObjectDefinitionWrapper {
       fields: [],
       directives: directives,
     });
-    for (let field of fields) {
+    for (const field of fields) {
       const fieldWrapper = new InputFieldWrapper(field);
       wrappedObj.addField(fieldWrapper);
     }
@@ -421,7 +422,7 @@ export class InputObjectDefinitionWrapper {
     };
 
     const wrappedInput = new InputObjectDefinitionWrapper(inputObj);
-    for (let f of def.fields || []) {
+    for (const f of def.fields || []) {
       const wrappedField = InputFieldWrapper.fromField(f.name.value, f, def, document);
       wrappedInput.fields.push(wrappedField);
     }
